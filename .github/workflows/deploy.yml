@@ -1,56 +1,48 @@
-name: CICD for Youtube
+name: Deploy Vue.js App to EC2
 
 on:
   push:
     branches:
-        - main
+      - main
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [14.x]
 
     steps:
-      - uses: actions/checkout@v2
-      - name: Use node js
-        uses: actions/setup-node@v1
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install Node.js and npm
+        uses: actions/setup-node@v3
         with:
-         node-version: ${{ matrix.node-version }}
-      - name: npm install and build
-        run: |
-          npm install
-          npm run build
+          node-version: 14
 
-        env: 
-          CI: true   
+      - name: Install project dependencies
+        run: npm install
 
+      - name: Build Vue.js app
+        run: npm run build
 
-  depoly:
-    needs: [build]
-    runs-on: ubuntu-latest
+      - name: Copy files to EC2 instance
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          port: ${{ secrets.EC2_PORT }}
+          source: "dist/"  # Adjust the source path based on your project structure
+          target: "/var/www/html"  # Adjust the target path on your EC2 instance
 
-    steps:
-     - name: SSH deploy
-       uses: appleboy/ssh-action@master
-       with:
-          host: ${{ secrets.HOST }}
-          username:  ${{ secrets.USER }}
-          key:  ${{ secrets.KEY }}
-          port:  ${{ secrets.PORT }}
+      - name: SSH into EC2 instance and deploy
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          port: ${{ secrets.EC2_PORT }}
           script: |
-              curl -o-   https://raw.githubusercontent.com/creationix/nvm/v0.33.8/install.sh    | bash
-              . ~/.nvm/nvm.sh
-
-               nvm instal 14
-               npm install -g pm2
-               cd ~/CICD
-               git pull origin main
-               npm install
-               npm run build
-               pm2 restart api
-            
-
-
-
+            cd /var/www/html
+            pm2 stop your-app-name  # Adjust the process name based on your setup
+            npm install
+            pm2 start your-app-name  # Adjust the process name based on your setup
